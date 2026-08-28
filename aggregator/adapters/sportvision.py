@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from typing import AsyncIterator
 from xml.etree import ElementTree
 
+import httpx
+
 from ..fetch import PoliteClient
 from ..models import Product
 
@@ -34,6 +36,10 @@ OLD_PRICE_RE = re.compile(
     r'class="[^"]*\bproduct-oldprice\b([^"]*)"[^>]*>\s*'
     r'<span class="product-oldprice-value value">([\d.,]+)</span>', re.S)
 PRODUCT_PATH_RE = re.compile(r"/([a-z0-9-]+)/(\d+)-[^/]+/?$")
+# Product tile on listing pages: anchor with the detail URL and the product
+# title. Tiles repeat per color variant, so de-dup on the numeric id.
+TILE_RE = re.compile(
+    r'<a href="(https?://[^"]+/mk/[a-z0-9-]+/(\d{5,})-[^"]*)"\s+title="([^"]*)"')
 
 
 @dataclass(frozen=True)
@@ -65,6 +71,38 @@ class SportVisionAdapter:
         for loc in root.iterfind(".//sm:url/sm:loc", SITEMAP_NS):
             if loc.text:
                 yield loc.text.strip()
+
+    async def discover_listing(
+            self, client: PoliteClient,
+            listing_path: str) -> AsyncIterator[tuple[str, str]]:
+        """Yield (product_url, title) from a filtered listing.
+
+        `listing_path` is the path after /mk/, using the site's own filter
+        segments, e.g. "patiki/zenski/new-balance" for women's New Balance
+        sneakers. Walks /page-2, /page-3, ... until pages run out.
+        """
+        seen: set[str] = set()
+        page = 1
+        while True:
+            suffix = "" if page == 1 else f"/page-{page}"
+            url = f"{self.config.base_url}/mk/{listing_path.strip('/')}{suffix}"
+            try:
+                resp = await client.get(url)
+            except httpx.HTTPStatusError as exc:
+                if exc.response is not None and exc.response.status_code == 404:
+                    return
+                raise
+            new = 0
+            for match in TILE_RE.finditer(resp.text):
+                product_id = match.group(2)
+                if product_id in seen:
+                    continue
+                seen.add(product_id)
+                new += 1
+                yield match.group(1), match.group(3).strip()
+            if new == 0 or f"page-{page + 1}" not in resp.text:
+                return
+            page += 1
 
     async def fetch_product(self, client: PoliteClient, url: str) -> Product | None:
         resp = await client.get(url)

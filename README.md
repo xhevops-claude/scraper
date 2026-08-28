@@ -16,6 +16,21 @@ python -m aggregator sources                       # list available sites
 python -m aggregator crawl sportvision_mk \
     --db products.db --limit 50 --delay 1.0        # test crawl
 python -m aggregator crawl sportvision_mk --db products.db   # full crawl (~13k products)
+
+# Targeted crawls (a handful of requests instead of thousands):
+
+# One filtered listing, using the site's own URL filter segments
+# (category/gender/brand/...), e.g. women's New Balance sneakers:
+python -m aggregator crawl sportvision_mk --db products.db \
+    --listing "patiki/zenski/new-balance"
+
+# Plus a title filter (checked BEFORE fetching each product page):
+python -m aggregator crawl sportvision_mk --db products.db \
+    --listing "patiki/zenski/new-balance" --contains 9060
+
+# Or search the whole catalog by name via the sitemap slug
+# (1 sitemap request + only the matching product pages):
+python -m aggregator crawl sportvision_mk --db products.db --contains 9060
 ```
 
 Re-running a crawl updates `products` in place (`last_seen` bumps) and appends
