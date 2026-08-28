@@ -50,22 +50,38 @@ Filter vocabulary seen so far: `maski`, `zenski`, `unisex`, `vozrasni`,
 The numeric product id (`8426431`) is the stable key for dedup and price
 history.
 
-## To verify once network access is available
+## Verified with direct access (2026-08-28)
 
-1. `robots.txt` — crawl rules, sitemap pointer, crawl-delay.
-2. `sitemap.xml` — if product sitemaps exist, enumeration becomes trivial
-   (no category crawling needed).
-3. Server-rendered vs JS-hydrated listing pages (`curl` the HTML and check
-   whether product names/prices are present without executing JS). The
-   `+`-joined path filters suggest a faceted-search backend; look for the
-   XHR/JSON endpoint behind the filter UI (network tab via Playwright).
-4. Pagination format on listing pages (`?page=N` vs path segment).
-5. JSON-LD / microdata on product pages (Product schema with price,
-   availability, GTIN would remove most HTML parsing).
-6. Image CDN domain (needs to be allowlisted too if we mirror images).
-7. Anti-bot behavior: response to plain `curl` UA vs browser UA, rate limits.
-8. Confirm the .rs/.ba/.ro storefronts share markup so one adapter + config
-   covers the family.
+1. `robots.txt` — permissive: only blocks `?search=`, `?SID=`, a few misc
+   patterns. No crawl-delay. Points at the sitemap index:
+   `https://www.sportvision.mk/files/sitemap/sitemap.xml`.
+2. Sitemaps — index → `files/sitemap/MAK_mk/sitemap.xml` (Macedonian) and
+   `MAK_al/` (Albanian). The MK set includes **`product.xml` with 12,979
+   product URLs** plus `product_group.xml`, `list_product.xml`, `store.xml`.
+   Product enumeration is trivial; no category crawling needed.
+3. Pages are **fully server-rendered** — plain `curl` with a browser UA gets
+   complete HTML (listing page ~780KB, product page ~360KB). No Playwright
+   needed.
+4. Pagination: path segment `page-N`, e.g. `/mk/patiki/page-2`. 48 product
+   tiles per listing page.
+5. Product pages embed **schema.org Product JSON-LD**: `name`, `sku`
+   (style code like `150437-TPE`), `productID` (the URL's numeric id),
+   `brand`, `image` (list or single string), `offers.price` /
+   `priceCurrency` / `availability`, return/shipping policy. No GTIN.
+   Caveats: one ld+json block on the page is commented-out invalid JSON
+   (skip non-parsing blocks); breadcrumb JSON-LD gives the category tree.
+   Previous/discount price is HTML-only: the `product-oldprice` block
+   (carries class `hide` when no discount — related-product tiles use
+   `prev-old-price`, don't match those). Sizes are HTML-only
+   (`product-attributes` list, EU/CM tabs, `disabled` = size unavailable).
+6. Images are same-domain: `/files/images/slike_proizvoda/...` (full size)
+   and `/files/thumbs/...` (350px thumbs). No separate CDN domain.
+7. Anti-bot: none observed — plain curl with a browser UA works at 1-2 req/s.
+   Bare `sportvision.mk` (no `www`) redirects to `www`; crawl `www` directly.
+8. Price formats differ by location: JSON-LD uses `4990.00`; HTML uses
+   `4.990` (dot = thousands separator). Currency MKD.
+9. .rs/.ba/.ro storefront markup share still unverified (their domains
+   weren't in this session's network allowlist).
 
 ## Environment blocker and fix
 
