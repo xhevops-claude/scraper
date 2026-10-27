@@ -3,9 +3,14 @@
 Scrapes sportswear products from multiple shop websites into one normalized
 SQLite database, with price history.
 
-First supported site family: **Sport Vision** (sportvision.mk live; the same
-platform runs storefronts in 13 countries, ready to enable in
-`aggregator/adapters/sportvision.py`).
+Live sources (all on the Sport Vision Group's NBSHOP platform, one adapter):
+`sportvision_mk`, `sportreality_mk`, `buzzsneakers_mk`. The same platform
+runs Sport Vision storefronts in 13 more countries, ready to enable in
+`aggregator/adapters/sportvision.py`.
+
+Researched, adapter not yet written: Sport M and Intersport MK (shared
+custom platform), D Sport MK (Magento, blocked by Cloudflare from the cloud
+session). See `docs/research/sources.md` for the overview.
 
 ## Usage
 

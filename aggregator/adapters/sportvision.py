@@ -1,8 +1,9 @@
 """Adapter for the Sport Vision e-commerce platform.
 
-The same platform runs Sport Vision storefronts in 13 countries
-(sportvision.mk, .rs, .ba, ...) plus sister brands, so one adapter covers
-the family; each storefront is a SiteConfig entry.
+The same platform (NBSHOP) runs Sport Vision storefronts in 13 countries
+(sportvision.mk, .rs, .ba, ...) plus the sister brands Sport Reality and
+Buzz Sneakers, so one adapter covers the family; each storefront is a
+SiteConfig entry.
 
 Findings for sportvision.mk (verified 2026-08-28, see
 docs/research/sportvision-mk.md):
@@ -52,7 +53,11 @@ class SiteConfig:
 
 SPORTVISION_SITES = [
     SiteConfig("sportvision_mk", "https://www.sportvision.mk", "MAK_mk", "MKD"),
-    # Same platform, ready to enable once their domains are reachable:
+    # Sister brands on the same NBSHOP platform, same sitemap layout and
+    # product markup (verified 2026-10-27, see docs/research/):
+    SiteConfig("sportreality_mk", "https://www.sportreality.mk", "MAK_mk", "MKD"),
+    SiteConfig("buzzsneakers_mk", "https://www.buzzsneakers.mk", "MAK_mk", "MKD"),
+    # Other countries' storefronts, ready to enable once reachable:
     # SiteConfig("sportvision_rs", "https://www.sportvision.rs", "SRB_rs", "RSD"),
     # SiteConfig("sportvision_ba", "https://www.sportvision.ba", "BIH_ba", "BAM"),
 ]
@@ -152,7 +157,9 @@ class SportVisionAdapter:
         # block that parses and has @type == Product.
         for match in LDJSON_RE.finditer(html):
             try:
-                data = json.loads(match.group(1))
+                # strict=False: descriptions sometimes carry raw newlines
+                # inside the JSON string, which the default parser rejects.
+                data = json.loads(match.group(1), strict=False)
             except json.JSONDecodeError:
                 continue
             if isinstance(data, dict) and data.get("@type") == "Product":
