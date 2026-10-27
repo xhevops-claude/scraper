@@ -78,6 +78,10 @@ def main() -> None:
                          help="Crawl one filtered listing instead of the full "
                               "sitemap, using the site's URL filter segments, "
                               'e.g. "patiki/zenski/new-balance"')
+    p_crawl.add_argument("--brand", default=None, metavar="NAME",
+                         help="Crawl one brand's listing, e.g. adidas or "
+                              '"new balance"; the adapter maps it to the '
+                              "site's own filter")
     p_crawl.add_argument("--contains", default=None, metavar="TEXT",
                          help="Only keep products whose title (listing mode) "
                               "or URL slug (sitemap mode) contains TEXT, "
@@ -90,8 +94,16 @@ def main() -> None:
         for name in sorted(ADAPTERS):
             print(name)
     elif args.command == "crawl":
+        listing = args.listing
+        if args.brand:
+            if listing:
+                parser.error("--brand and --listing are mutually exclusive")
+            listing = ADAPTERS[args.source].brand_listing(args.brand)
+            if not listing:
+                parser.error(f"{args.source} has no listing for brand "
+                             f"{args.brand!r}")
         asyncio.run(crawl(args.source, args.db, args.limit, args.delay,
-                          args.listing, args.contains))
+                          listing, args.contains))
 
 
 if __name__ == "__main__":

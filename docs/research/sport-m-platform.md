@@ -1,7 +1,8 @@
 # Sport M platform — sport-m.com.mk and intersport.mk
 
-Status: **verified with direct access** (2026-10-27). One adapter covers
-both shops; they run the same custom codebase (Intersport's own meta
+Status: **verified with direct access** (2026-10-27); adapter live as
+`sportm_mk` and `intersport_mk` (`aggregator/adapters/sportm.py`). One
+adapter covers both shops; they run the same custom codebase (Intersport's own meta
 description reads "Official online shop of Sport M", and both share
 identical routes, markup and JS).
 
@@ -36,7 +37,8 @@ variants are separate ids (linked from the product page's colour picker).
 
 ## Listing page (18 tiles per page)
 
-Each tile is `div.product_partial` containing:
+Two tile layouts. **Intersport** (newer theme) — each `div.product_partial`
+contains:
 
 ```html
 <img class="ow-brand-image" alt="Terinda" src="/BrandsImages/Terinda.png">   <!-- brand -->
@@ -51,6 +53,13 @@ priceWithDiscount, discountFlag, priceNumeric)` call is the cleanest
 machine-readable source: id, both prices, a `'1'`/`'0'` discount flag and
 the numeric price. Discounted tiles render the regular price in
 `.pricePositionDecoration` and the sale price in `.colorRed`.
+
+**Sport M** (older theme) tiles have only the image link, with the product
+name in an *unquoted* `alt` (`<img src=/ProductImages/JZ8106.webp alt=Adidas
+LINEAR DUF M CB class="img-list">`), and a `.price-box` with the price; a
+discounted tile shows the regular price in `.pricePositionDecoration` and
+the sale price in `.colorRed`. No brand logo, so brand is derived from the
+first word of the name.
 
 So a **listing-only crawl** (~360 + ~260 requests for both shops) yields
 id, name, brand, image, price, old price and discount flag for the whole
@@ -94,15 +103,23 @@ some duplicates/misses between runs and de-dup on id.
 - `og:` meta tags are site-wide boilerplate (og:url points at the homepage) —
   ignore them.
 
-## Adapter plan
+## Adapter (built)
 
 `aggregator/adapters/sportm.py`, `SiteConfig(source, base_url)` ×2:
 
-- `discover()`: iterate `/ProductCatalog?Page=N`, parse tiles via the
-  add-to-cart args + brand alt + title anchor; yield URL and a prefilled
-  partial `Product` (so the CLI can store stock from listings alone).
-- `discover_listing(path)`: same walker on `/ProductCatalog?<query>`
-  (`Segment=03&Brend=01`), giving the targeted-crawl mode we have for NBSHOP.
-- `fetch_product()`: price/old price by id, breadcrumb category, sizes.
-- Price parsing: strip ` ден.`, remove `.` thousands, `,`→`.`.
-- Register `sportm_mk` and `intersport_mk` in `ADAPTERS`.
+- `discover()` walks `/ProductCatalog?Page=N`; `discover_listing(query)`
+  walks `/ProductCatalog?<query>&Page=N` (`--listing "Segment=03&Brend=01"`);
+  `brand_listing("adidas")` → `Brend=01`. Both stop at the first page with
+  no new tiles.
+- Tiles are parsed into a per-id cache (name, brand, image, price, old
+  price) that `fetch_product()` falls back to.
+- `fetch_product()` reads the product page: name, price by element id, old
+  price, breadcrumb category ("Мажи/Обувки"), sizes → `InStock`, gallery
+  images from the DevExpress zoom-navigator item list (names contain spaces,
+  URL-encoded).
+- Gallery images on Sport M are named like
+  `KD5927_1_APPAREL_Photography_Standard Top Part View_grey.webp`.
+
+Open items: size-level stock is not stored (the `Product` model has no
+sizes field yet); a listing-only fast path for stock refreshes is not wired
+into the CLI.

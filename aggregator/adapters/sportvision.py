@@ -109,6 +109,11 @@ class SportVisionAdapter:
                 return
             page += 1
 
+    def brand_listing(self, brand: str) -> str | None:
+        """Brand filter listing, e.g. "proizvodi/new-balance"."""
+        slug = re.sub(r"[^a-z0-9]+", "-", brand.strip().casefold()).strip("-")
+        return f"proizvodi/{slug}" if slug else None
+
     async def fetch_product(self, client: PoliteClient, url: str) -> Product | None:
         resp = await client.get(url)
         return self.parse_product(resp.text, url)
