@@ -1,5 +1,11 @@
 # Product aggregator
 
+> **Status (2026-10-27):** this Python tree is the working prototype. The
+> project continues as the **Collector** platform, C# / .NET 10 / ASP.NET
+> Core with RabbitMQ and Postgres; see `docs/ARCHITECTURE.md` for the design
+> and vocabulary and `docs/RESUME-HERE.md` for where things stand. The
+> prototype stays as the reference until the .NET harvesters reach parity.
+
 Scrapes sportswear products from multiple shop websites into one normalized
 SQLite database, with price history.
 

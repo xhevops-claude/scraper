@@ -1,36 +1,59 @@
 # Resume here
 
-Last updated 2026-10-27 by the Claude cloud session
-(https://claude.ai/code/session_01TaFuhUT1hkbaxPQeREF9wU).
-Branch: `claude/zealous-tesla-trgrsh` (all work pushed; no PR opened).
+Last updated 2026-10-28 on the owner's box (local session).
+Branch: `claude/zealous-tesla-trgrsh` (no PR opened).
 
 ## Where things stand, in one minute
 
-- Working Python scraper → SQLite, with price history, for **five
-  Macedonian sportswear shops** on two platforms. Crawls can be filtered
-  by brand (`--brand adidas`), by site listing, or by title.
-- Every shop stores the brand's own article code as `sku`, so cross-shop
-  and shop↔official-catalog matching is exact (adidas `HP6005` etc.).
-- Direction agreed: grow this into an **ecosystem** (central Postgres,
-  ingestion pipelines, catalog sources, matching). See
-  [ARCHITECTURE.md](ARCHITECTURE.md). Brands onboarded one at a time:
-  **adidas first, Nike second.**
-- The cloud session's IP is blocked by Cloudflare on dsport.mk and by
-  Akamai on adidas.com. That is why work moves to a local machine.
+- **Design agreed 2026-10-27/28: the Collector platform.** C# on .NET 10,
+  RabbitMQ between stages, Postgres. A project is a tree of
+  **operations** (`clothing/shoes/sportm`); each leaf holds job ×
+  strategy pairs; a Conductor runs **runs** on a namespace; harvesters and
+  adapters are leaves that never decide anything; a lake keeps raw items;
+  adapters produce Products and Listings of the operation's domain with
+  deterministic ids; the operation owns the model and harvests only what
+  it needs (the apples rule); projects are hard partitions. All of it,
+  with the vocabulary, in [ARCHITECTURE.md](ARCHITECTURE.md). Nothing of
+  it is built yet.
+- What exists is the **Python prototype** (`aggregator/`): fetch and parse
+  for **five Macedonian sportswear shops** on two platforms, into SQLite.
+  It is the reference for the harvest commands and the two Shoes adapters
+  to be written, then it gets deleted.
+- Every shop exposes the brand's own article code as `sku`, so matching to
+  brand catalogs later is exact (adidas `HP6005` etc.). First project:
+  shoes in North Macedonia; adidas first, Nike second.
+- The cloud session's IP was blocked by Cloudflare on dsport.mk and by
+  Akamai on adidas.com. That is why work moved to the owner's box, which
+  is the first node.
+- System map (visual): https://claude.ai/artifact/KVfRL3UyPBNhiJv6AG9FNn
 
 ## Set up locally
 
+.NET SDK 10.0.401 is installed on the box (`dotnet --version`). RabbitMQ
+and Postgres are not running anywhere yet. Once the solution skeleton
+exists:
+
 ```bash
-git clone <repo> && cd scraper
 git checkout claude/zealous-tesla-trgrsh
-python3 -m venv .venv && . .venv/bin/activate
+dotnet build
+dotnet test
+dotnet run --project src/Collector.Cli -- run clothing/shoes/sportm sportm.discover --strategy fast --brand adidas --limit 5
+dotnet run --project src/Collector.Cli -- runs                      # progress, per item
+dotnet run --project src/Collector.Cli -- decide <run> retry-elsewhere
+```
+
+To run the Python prototype for comparison (no Python on Windows; the WSL
+distros have 3.12 without `httpx`):
+
+```bash
 pip install httpx
 python -m aggregator sources
 python -m aggregator crawl sportm_mk --db products.db --brand adidas --limit 5
 ```
 
-No tests exist yet. Ad-hoc verification was done by parsing saved HTML and
-by live `--limit` crawls (all passing on 2026-10-27).
+No tests exist yet. Ad-hoc verification of the prototype was done by
+parsing saved HTML and by live `--limit` crawls (all passing on
+2026-10-27).
 
 ## Sources
 
@@ -59,43 +82,47 @@ site), `buzz.mk` (parked), `intersport.com.mk` / `sportm.com.mk`
 - Sport M listing: 18 tiles/page; stop when a page yields no new tiles
   (the "next" arrow is always rendered). Sport M and Intersport use
   different tile layouts; both handled.
-- NBSHOP: JSON-LD descriptions can contain raw newlines → parse with
-  `strict=False` (fixed). `/mk/proizvodi/sale` is 404 on Sport Reality;
+- NBSHOP: JSON-LD descriptions can contain raw newlines → the prototype
+  parses with `strict=False`; `System.Text.Json` needs the string
+  sanitised before parsing. `/mk/proizvodi/sale` is 404 on Sport Reality;
   use `/mk/proizvodi/?outlet=yes`. Filter slugs differ per shop
   (`/mk/patiki/zenski` is 404 on Buzz).
-- Sizes are parsed on the Sport M platform but **not stored** (no field
-  in `Product` yet). Any listed size = purchasable; sold-out sizes are
-  omitted, not marked.
+- Sizes are parsed on the Sport M platform but **not stored** by the
+  prototype. Any listed size = purchasable; sold-out sizes are omitted,
+  not marked. `Listing.sizes[]` has a place for them, with branch.
 - Brand casing differs ("adidas" NBSHOP vs "Adidas" Sport M).
 
 ## Next steps, in order
 
-1. **Decide the three open items** in ARCHITECTURE.md § Open decisions
-   (hosting, database, adidas catalog source).
-2. **Check the two blocked sites from a normal IP**:
+1. **Decide the open items** in ARCHITECTURE.md § Open decisions (where
+   it runs, lake body storage, message size cap, MassTransit or raw,
+   live-check policy).
+2. **Check the two blocked sites from the box's IP**:
    - `https://www.dsport.mk/media/sitemap/dsport.xml` and whether
      `/amfeed/feed/download` serves a public product feed
      (docs/research/dsport-mk.md has the plan).
    - `https://www.adidas.com/us/vs-pace-2.0-shoes/HP6005.html` resolves
      (confirms article-code URLs); look for a product API/feed.
-3. **Schema**: create the Postgres schema from ARCHITECTURE.md § 3; port
-   `aggregator/db.py`; add `sizes` (+EAN) to `Product` and both adapters.
-4. **Pipeline**: `runs` + raw page snapshots + a `run <source> <brand>`
-   command with metrics; cron it daily for adidas on all five sources.
-5. **adidas catalog connector** → `catalog_variants`; matcher on article
-   code; report match rate.
-6. Then Nike, then the rest.
+3. **Build order step 1**: solution skeleton, `Core` (Entity, ids,
+   message contracts, job and strategy schemas, Shoes domain), `Data`
+   (platform tables, Product, Listing, Category, first migration),
+   RabbitMQ + Postgres running locally.
+4. Then steps 2 to 8 of the build order in ARCHITECTURE.md.
 
 ## Things explicitly not done / not to do
 
-- No PR was opened; no tests written; no CI.
-- Do not try to get around Cloudflare/Akamai (also refused by the cloud
-  session's policy). Use an allowed IP and the polite client.
+- No PR was opened; no tests written; no CI; no .NET code yet.
+- Do not try to get around Cloudflare/Akamai. Use an allowed node and the
+  polite fetcher.
+- Do not extend the Python prototype; port from it.
 - The 13 non-MK Sport Vision storefronts are commented out in
   `sportvision.py`; enable only when needed (currency/sitemap region per
   site are guesses until checked).
 
-## Artifacts from the session
+## Artifacts
 
-- One-page visual plan: https://claude.ai/artifact/Sz7KqmAcHnceRKNyMeamys
-  (private to the owner; superseded by ARCHITECTURE.md for detail).
+- System map of the Collector platform (private to the owner):
+  https://claude.ai/artifact/KVfRL3UyPBNhiJv6AG9FNn
+- Older one-page plan from the cloud session, superseded:
+  https://claude.ai/artifact/Sz7KqmAcHnceRKNyMeamys
+- Cloud session: https://claude.ai/code/session_01TaFuhUT1hkbaxPQeREF9wU
